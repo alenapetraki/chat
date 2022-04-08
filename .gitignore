@@ -1,0 +1,7 @@
+.idea
+.vscode
+.cover
+*.paw
+debug
+Gopkg.lock
+bin/

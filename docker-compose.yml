@@ -1,0 +1,12 @@
+version: '3.5'
+services:
+  postgres:
+    restart: always
+    container_name: postgres_${PROJECT_NAME}
+    image: postgres:latest
+    ports:
+      - 5435:5432
+    environment:
+      - POSTGRES_DB=${PROJECT_NAME}
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
