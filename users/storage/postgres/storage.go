@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/alenapetraki/chat/users"
 	"github.com/cockroachdb/errors"
 	_ "github.com/lib/pq"
@@ -61,13 +60,14 @@ func (s *storage) Close() error {
 func (s *storage) initUserTable() error {
 
 	if _, err := s.db.Exec(`
-CREATE TABLE IF NOT EXISTS "user" (
-	id text PRIMARY KEY,
-	username text UNIQUE NOT NULL,
+create table if not exists "user" (
+	id text primary key ,
+	username text unique not null,
+	password text,
+	email text unique,
 	full_name text,
 	status text,
-	avatar_url text,
-	deleted bool                  
+	deleted bool default false                
 )`); err != nil {
 		return errors.Wrap(err, "failed to initialize 'user' table")
 	}
@@ -79,15 +79,17 @@ func (s *storage) CreateUser(ctx context.Context, user *users.User) error {
 
 	query := `
 INSERT INTO "user" (
-	id, username, full_name, status, deleted
+	id, username, password, email, full_name, status
 )
 VALUES (
-	$1, $2, $3, $4, false
+	$1, $2, $3, $4, $5, $6
 )`
 	_, err := s.db.Exec(
 		query,
 		user.ID,
 		user.Username,
+		user.Password,
+		user.Email,
 		user.FullName,
 		user.Status,
 	)
@@ -121,7 +123,9 @@ func (s *storage) UpdateUser(ctx context.Context, user *users.User) error {
 
 func (s *storage) GetUser(ctx context.Context, userID string) (*users.User, error) {
 
-	row := s.db.QueryRowContext(ctx, `SELECT username, full_name, status FROM "user" WHERE id=$1 AND deleted=false`, userID) // todo: лучше прописывать явно колонки или '*'
+	row := s.db.QueryRowContext(
+		ctx,
+		`SELECT username, full_name, status FROM "user" WHERE id=$1 AND deleted=false`, userID) // todo: лучше прописывать явно колонки или '*'
 
 	user := &users.User{ID: userID}
 
@@ -131,63 +135,6 @@ func (s *storage) GetUser(ctx context.Context, userID string) (*users.User, erro
 	}
 
 	return user, nil
-}
-
-func (s *storage) FindUsers(ctx context.Context, filter *users.FindUsersFilter) ([]*users.User, error) {
-
-	//q := `SELECT id, username, full_name, status FROM "user"`
-	//args := make([]any, 0)
-
-	builder := sq.Select("id", "username", "full_name", "status").
-		From("\"user\"").
-		Where("deleted=false")
-
-	if filter != nil {
-
-		if filter.Username != "" {
-			builder = builder.Where(sq.Like{"username": "?"}, filter.Username)
-
-			//where = append(where, `username LIKE ?`)
-			//args = append(args, filter.Username)
-		}
-
-		if len(filter.Sort) > 0 {
-			builder = builder.OrderBy(filter.Sort...)
-			//q += " ORDER BY " + strings.Join(filter.Sort, ",")
-		}
-		if filter.Offset != 0 {
-			builder = builder.Offset(uint64(filter.Offset))
-			//q = fmt.Sprintf(`%s OFFSET %d`, q, filter.Offset)
-		}
-		if filter.Limit != 0 {
-			builder = builder.Limit(uint64(filter.Limit))
-			//q = fmt.Sprintf(`%s LIMIT %d`, q, filter.Limit)
-		}
-
-	}
-
-	str, args, err := builder.ToSql()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(str, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	res := make([]*users.User, 0)
-	for rows.Next() {
-
-		user := new(users.User)
-		err = rows.Scan(&user.ID, &user.Username, &user.FullName, &user.Status)
-		if err != nil {
-			return nil, err
-		}
-
-		res = append(res, user)
-	}
-	return res, nil
 }
 
 func (s *storage) ForceDeleteUser(ctx context.Context, userID string) error {
@@ -221,3 +168,60 @@ func (s *storage) DeleteUser(ctx context.Context, userID string) error {
 
 	return nil
 }
+
+//func (s *storage) FindUsers(ctx context.Context, filter *account.FindUsersFilter) ([]*account.User, error) {
+//
+//	//q := `SELECT id, username, full_name, status FROM "user"`
+//	//args := make([]any, 0)
+//
+//	builder := sq.Select("id", "username", "full_name", "status").
+//		From("\"user\"").
+//		Where("deleted=false")
+//
+//	if filter != nil {
+//
+//		if filter.Username != "" {
+//			builder = builder.Where(sq.Like{"username": "?"}, filter.Username)
+//
+//			//where = append(where, `username LIKE ?`)
+//			//args = append(args, filter.Username)
+//		}
+//
+//		if len(filter.Sort) > 0 {
+//			builder = builder.OrderBy(filter.Sort...)
+//			//q += " ORDER BY " + strings.Join(filter.Sort, ",")
+//		}
+//		if filter.Offset != 0 {
+//			builder = builder.Offset(uint64(filter.Offset))
+//			//q = fmt.Sprintf(`%s OFFSET %d`, q, filter.Offset)
+//		}
+//		if filter.Limit != 0 {
+//			builder = builder.Limit(uint64(filter.Limit))
+//			//q = fmt.Sprintf(`%s LIMIT %d`, q, filter.Limit)
+//		}
+//
+//	}
+//
+//	str, args, err := builder.ToSql()
+//	if err != nil {
+//		return nil, err
+//	}
+//	rows, err := s.db.Query(str, args...)
+//	if err != nil {
+//		return nil, err
+//	}
+//	defer rows.Close()
+//
+//	res := make([]*account.User, 0)
+//	for rows.Next() {
+//
+//		user := new(account.User)
+//		err = rows.Scan(&user.ID, &user.Username, &user.FullName, &user.Status)
+//		if err != nil {
+//			return nil, err
+//		}
+//
+//		res = append(res, user)
+//	}
+//	return res, nil
+//}
