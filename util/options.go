@@ -1,4 +1,4 @@
-package commons
+package util
 
 type PaginationOptions struct {
 	Limit  uint `json:"limit,omitempty"`

@@ -9,6 +9,6 @@ func WithUser(ctx context.Context, userID string) context.Context {
 }
 
 func GetUserID(ctx context.Context) string {
-	userID, _ := ctx.Value(userIDKey{}).(string)
+	userID := ctx.Value(userIDKey{}).(string)
 	return userID
 }

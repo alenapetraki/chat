@@ -2,29 +2,22 @@ package account
 
 import (
 	"context"
+
+	"github.com/alenapetraki/chat/models/entities"
 )
 
 // todo: WIP. непонятно пока, как будет работать
 
 type Service interface {
-	CreateUser(ctx context.Context, user *User) (*User, error)
-	UpdateUser(ctx context.Context, user *User) error
-	GetUser(ctx context.Context, userID string) (*User, error)
+	CreateUser(ctx context.Context, user *entities.User) (*entities.User, error)
+	UpdateUser(ctx context.Context, user *entities.User) error
+	GetUser(ctx context.Context, userID string) (*entities.User, error)
 	DeleteUser(ctx context.Context, userID string) error
 
 	//Authenticate(ctx context.Context, creds *Credentials) (string, error)
 	//Refresh(token string) (string, error)
 
 	//FindUsers(ctx context.Context, filter *FindUsersFilter) ([]*User, error)
-}
-
-type User struct {
-	ID       string `json:"id,omitempty"`
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-	Email    string `json:"email,omitempty"`
-	FullName string `json:"full_name,omitempty"`
-	Status   string `json:"status,omitempty"`
 }
 
 //type FindUsersFilter struct {

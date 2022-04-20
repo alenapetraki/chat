@@ -5,7 +5,8 @@ import (
 
 	"github.com/alenapetraki/chat/auth"
 	"github.com/alenapetraki/chat/chats"
-	"github.com/alenapetraki/chat/commons"
+	"github.com/alenapetraki/chat/models/entities"
+	"github.com/alenapetraki/chat/util/id"
 	"github.com/pkg/errors" //todo: deprecated
 )
 
@@ -13,40 +14,50 @@ type service struct {
 	storage chats.Storage
 }
 
-func New(storage chats.Storage) chats.Chats {
+func New(storage chats.Storage) *service {
 	return &service{storage: storage}
 }
 
-func (s *service) CreateChat(ctx context.Context, chat *chats.Chat) (*chats.Chat, error) {
-	if chat == nil {
-		return nil, errors.New("type required")
-	}
-	if chat.Type == chats.GroupType || chat.Type == chats.ChannelType {
+func (s *service) CreateChat(ctx context.Context, chat *entities.Chat) (*entities.Chat, error) {
+	if chat.Type == entities.GroupType || chat.Type == entities.ChannelType {
 		if chat.Name == "" {
 			return nil, errors.New("name required")
 		}
-		// todo: validate or normalize sting
 	}
 
-	if chat.Type == chats.DialogType {
+	if chat.Type == entities.DialogType {
 		chat.Name = ""
 		chat.Description = ""
 		chat.AvatarURL = ""
 	}
 
-	chat.ID = commons.GenerateID()
-	if err := s.storage.CreateChat(ctx, chat); err != nil {
-		return nil, errors.Wrap(err, "failed to create chat")
+	var err error
+	chat.ID, err = id.NewULID()
+	if err != nil {
+		return nil, err
 	}
 
-	if err := s.storage.AddMember(ctx, chat.ID, auth.GetUserID(ctx), chats.OwnerRole); err != nil {
-		return nil, errors.Wrap(err, "failed to set membership")
+	stTx, err := s.storage.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := stTx.EndTx(func() error {
+		if err := stTx.CreateChat(ctx, chat); err != nil {
+			return errors.Wrap(err, "failed to create chat")
+		}
+		if err := stTx.SetMember(ctx, chat.ID, auth.GetUserID(ctx), entities.RoleOwner); err != nil {
+			return errors.Wrap(err, "failed to set membership")
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	return chat, nil
 }
 
-func (s *service) GetChat(ctx context.Context, chatID string) (*chats.Chat, error) {
+func (s *service) GetChat(ctx context.Context, chatID string) (*entities.Chat, error) {
 	if chatID == "" {
 		return nil, errors.New("chat identifier required")
 	}
@@ -69,43 +80,51 @@ func (s *service) DeleteChat(ctx context.Context, chatID string) error {
 	return s.storage.DeleteMembers(ctx, chatID)
 }
 
-func (s *service) UpdateChat(ctx context.Context, chat *chats.Chat) error {
+func (s *service) UpdateChat(ctx context.Context, chat *entities.Chat) error {
 	if chat == nil || chat.ID == "" {
 		return errors.New("id required")
 	}
 	return s.storage.UpdateChat(ctx, chat)
 }
 
-func (s *service) AddMember(ctx context.Context, chatID, userID string) error {
+func (s *service) SetMember(ctx context.Context, chatID, userID, role string) error {
 	if userID == "" || chatID == "" {
 		return errors.New("chat and user ids required")
 	}
 
-	// - проверить, что пользователь еще не в чате
 	// - получить тип чата
 	//   - диалог: можно добавить только еще одного владельца
-	//   - группа или канал: добавляем простых членов
-
-	if _, err := s.storage.GetRole(ctx, userID, chatID); err == nil {
-		return errors.New("user already a member")
-	}
 
 	chat, err := s.storage.GetChat(ctx, chatID)
 	if err != nil {
 		return err
 	}
 
-	var role chats.Role
-	switch chat.Type {
-	case chats.DialogType:
-		role = chats.OwnerRole
-	case chats.GroupType, chats.ChannelType:
-		role = chats.MemberRole
+	if chat.Type == entities.DialogType {
+		members, err := s.storage.FindChatMembers(ctx, chatID, nil)
+		if err != nil {
+			return errors.Wrap(err, "check members")
+		}
+
+		isMember := false
+		//isMemberf := func() bool {
+		for _, m := range members {
+			if m.UserID == userID {
+				isMember = true
+				break
+			}
+		}
+		//}()
+
+		if len(members) == 2 && !isMember {
+			return errors.New("max two members for dialog are allowed")
+		}
+		role = entities.RoleOwner
 	}
 
-	// todo: ограничения по вместимости чата
+	// todo: ограничения по вместимости чата - запрос на Count к БД?
 
-	return s.storage.AddMember(ctx, chatID, userID, role)
+	return s.storage.SetMember(ctx, chatID, userID, role)
 }
 
 func (s *service) DeleteMember(ctx context.Context, chatID, userID string) error {
@@ -117,21 +136,21 @@ func (s *service) DeleteMember(ctx context.Context, chatID, userID string) error
 	if err != nil {
 		return err
 	}
-	if role == chats.OwnerRole {
+	if role == entities.RoleOwner {
 		return errors.New("cannot delete owner")
 	}
 
 	return s.storage.DeleteMembers(ctx, chatID, userID)
 }
 
-func (s *service) GetRole(ctx context.Context, chatID, userID string) (chats.Role, error) {
+func (s *service) GetRole(ctx context.Context, chatID, userID string) (string, error) {
 	if userID == "" || chatID == "" {
-		return 0, errors.New("chat and user ids required")
+		return "", errors.New("chat and user ids required")
 	}
 	return s.storage.GetRole(ctx, chatID, userID)
 }
 
 // todo: default sort
-//func (s *service) FindChatMembers(ctx context.Context, chatID string, options *commons.PaginationOptions) ([]*chats.ChatMember, error) {
+//func (s *service) FindChatMembers(ctx context.Context, chatID string, options *commons.PaginationOptions) ([]*ChatMember, error) {
 //	return s.storage.FindChatMembers(ctx, chatID, options)
 //}
