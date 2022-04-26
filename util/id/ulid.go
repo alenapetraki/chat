@@ -12,7 +12,7 @@ import (
 var mu sync.Mutex
 var entropy = ulid.Monotonic(rand.New(rand.NewSource(time.Now().UnixNano())), 0)
 
-// есть ли разница, работать с байтами или строкой?
+// есть ли разница, работать с ULID или строкой?
 
 func MustNewULID() string {
 	result, err := NewULID()

@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/alenapetraki/chat/auth"
-	"github.com/alenapetraki/chat/chats"
 	"github.com/alenapetraki/chat/models/entities"
+	"github.com/alenapetraki/chat/services/chats"
 	"github.com/alenapetraki/chat/util/id"
 	"github.com/pkg/errors" //todo: deprecated
 )
@@ -114,7 +114,6 @@ func (s *service) SetMember(ctx context.Context, chatID, userID, role string) er
 				break
 			}
 		}
-		//}()
 
 		if len(members) == 2 && !isMember {
 			return errors.New("max two members for dialog are allowed")

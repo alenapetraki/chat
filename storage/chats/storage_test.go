@@ -1,4 +1,4 @@
-package storage
+package chats
 
 import (
 	"context"
@@ -7,12 +7,13 @@ import (
 	"testing"
 
 	"github.com/alenapetraki/chat/models/entities"
+	"github.com/alenapetraki/chat/storage"
 	"github.com/alenapetraki/chat/util/id"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var cfg = &Config{
+var cfg = &storage.Config{
 	Host:     "localhost",
 	Port:     "5435",
 	User:     "chat_user",
@@ -22,7 +23,7 @@ var cfg = &Config{
 
 func TestChats_Create(t *testing.T) {
 
-	db, err := Connect("postgres", cfg)
+	db, err := storage.Connect("postgres", cfg)
 	require.NoError(t, err)
 	defer db.Close()
 	cleanUp(t, db)
@@ -56,7 +57,7 @@ func TestChats_Create(t *testing.T) {
 
 func TestChats_Read(t *testing.T) {
 
-	db, err := Connect("postgres", cfg)
+	db, err := storage.Connect("postgres", cfg)
 	require.NoError(t, err)
 	cleanUp(t, db)
 
@@ -97,7 +98,7 @@ func TestChats_Read(t *testing.T) {
 
 func TestMembers(t *testing.T) {
 
-	db, err := Connect("postgres", cfg)
+	db, err := storage.Connect("postgres", cfg)
 	require.NoError(t, err)
 	cleanUp(t, db)
 
@@ -147,7 +148,7 @@ func TestMembers(t *testing.T) {
 
 func TestTX(t *testing.T) {
 
-	db, err := Connect("postgres", cfg)
+	db, err := storage.Connect("postgres", cfg)
 	require.NoError(t, err)
 	cleanUp(t, db)
 

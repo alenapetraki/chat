@@ -1,30 +1,31 @@
-package storage
+package chats
 
 import (
 	"context"
 	"database/sql"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/alenapetraki/chat/chats"
 	"github.com/alenapetraki/chat/models/entities"
+	"github.com/alenapetraki/chat/services/chats"
+	"github.com/alenapetraki/chat/storage"
 	"github.com/alenapetraki/chat/util"
 	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 )
 
 type Storage struct {
-	conn Conn
+	conn storage.Conn
 }
 
-func New(db Conn) *Storage {
+func New(db storage.Conn) *Storage {
 	return &Storage{conn: db}
 }
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-// tx - адаптер для использования как execer
+// tx - адаптер для использования как Conn
 type transactioner struct {
-	Tx
+	storage.Tx
 }
 
 func (t *transactioner) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
