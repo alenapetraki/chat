@@ -7,7 +7,7 @@ import (
 	"github.com/alenapetraki/chat/models/entities"
 	"github.com/alenapetraki/chat/services/chats"
 	"github.com/alenapetraki/chat/util/id"
-	"github.com/pkg/errors" //todo: deprecated
+	"github.com/pkg/errors" //todo: deprecated. choose another package
 )
 
 type service struct {
@@ -29,6 +29,10 @@ func (s *service) CreateChat(ctx context.Context, chat *entities.Chat) (*entitie
 		chat.Name = ""
 		chat.Description = ""
 		chat.AvatarURL = ""
+	}
+
+	if chat.Type != entities.DialogType && chat.Type != entities.GroupType && chat.Type != entities.ChannelType {
+		return nil, errors.New("unknown type")
 	}
 
 	var err error
@@ -58,10 +62,6 @@ func (s *service) CreateChat(ctx context.Context, chat *entities.Chat) (*entitie
 }
 
 func (s *service) GetChat(ctx context.Context, chatID string) (*entities.Chat, error) {
-	if chatID == "" {
-		return nil, errors.New("chat identifier required")
-	}
-
 	chat, err := s.storage.GetChat(ctx, chatID)
 	if err != nil {
 		return nil, errors.New("get chat")
@@ -70,24 +70,18 @@ func (s *service) GetChat(ctx context.Context, chatID string) (*entities.Chat, e
 }
 
 func (s *service) DeleteChat(ctx context.Context, chatID string) error {
-	if chatID == "" {
-		return errors.New("chat identifier required")
-	}
 	if err := s.storage.DeleteChat(ctx, chatID); err != nil {
 		return err
 	}
-
-	return s.storage.DeleteMembers(ctx, chatID)
+	_, err := s.storage.DeleteMembers(ctx, chatID)
+	return err
 }
 
 func (s *service) UpdateChat(ctx context.Context, chat *entities.Chat) error {
-	if chat == nil || chat.ID == "" {
-		return errors.New("id required")
-	}
 	return s.storage.UpdateChat(ctx, chat)
 }
 
-func (s *service) SetMember(ctx context.Context, chatID, userID, role string) error {
+func (s *service) SetMember(ctx context.Context, chatID, userID string, role entities.Role) error {
 	if userID == "" || chatID == "" {
 		return errors.New("chat and user ids required")
 	}
@@ -107,7 +101,6 @@ func (s *service) SetMember(ctx context.Context, chatID, userID, role string) er
 		}
 
 		isMember := false
-		//isMemberf := func() bool {
 		for _, m := range members {
 			if m.UserID == userID {
 				isMember = true
@@ -127,10 +120,6 @@ func (s *service) SetMember(ctx context.Context, chatID, userID, role string) er
 }
 
 func (s *service) DeleteMember(ctx context.Context, chatID, userID string) error {
-	if userID == "" || chatID == "" {
-		return errors.New("chat and user ids required")
-	}
-
 	role, err := s.storage.GetRole(ctx, chatID, userID)
 	if err != nil {
 		return err
@@ -139,13 +128,11 @@ func (s *service) DeleteMember(ctx context.Context, chatID, userID string) error
 		return errors.New("cannot delete owner")
 	}
 
-	return s.storage.DeleteMembers(ctx, chatID, userID)
+	_, err = s.storage.DeleteMembers(ctx, chatID, userID)
+	return err
 }
 
-func (s *service) GetRole(ctx context.Context, chatID, userID string) (string, error) {
-	if userID == "" || chatID == "" {
-		return "", errors.New("chat and user ids required")
-	}
+func (s *service) GetRole(ctx context.Context, chatID, userID string) (entities.Role, error) {
 	return s.storage.GetRole(ctx, chatID, userID)
 }
 

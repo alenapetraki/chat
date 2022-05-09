@@ -9,6 +9,7 @@ import (
 	"github.com/alenapetraki/chat/services/chats"
 	"github.com/alenapetraki/chat/storage"
 	"github.com/alenapetraki/chat/util"
+	//"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 )
@@ -53,6 +54,10 @@ func (s *Storage) EndTx(f func() error) error {
 	return errors.Wrap(tx.Commit(), "commit tx")
 }
 
+//func (s *Storage) RunTx(ctx context.Context, f func(tx *sqlx.Tx)) error {
+//	return nil
+//}
+
 func (s *Storage) CreateChat(ctx context.Context, chat *entities.Chat) error {
 
 	_, err := psql.Insert("chat").
@@ -81,11 +86,11 @@ func (s *Storage) UpdateChat(ctx context.Context, chat *entities.Chat) error {
 		RunWith(s.conn).
 		ExecContext(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to update 'chat'")
+		return err
 	}
 
 	if num, _ := res.RowsAffected(); num == 0 {
-		return errors.New("not found")
+		return chats.ErrNotFound
 	}
 
 	return nil
@@ -113,6 +118,9 @@ func (s *Storage) GetChat(ctx context.Context, chatID string) (*entities.Chat, e
 		&chat.AvatarURL,
 	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, chats.ErrNotFound
+		}
 		return nil, err
 	}
 
@@ -144,13 +152,13 @@ func (s *Storage) DeleteChat(ctx context.Context, chatID string, force ...bool) 
 	}
 
 	if num, _ := res.RowsAffected(); num == 0 {
-		return errors.New("not found")
+		return chats.ErrNotFound
 	}
 
 	return nil
 }
 
-func (s *Storage) SetMember(ctx context.Context, chatID, userID string, role string) error {
+func (s *Storage) SetMember(ctx context.Context, chatID, userID string, role entities.Role) error {
 
 	_, err := psql.Insert("member").
 		Columns("chat_id", "user_id", "role").
@@ -162,7 +170,7 @@ func (s *Storage) SetMember(ctx context.Context, chatID, userID string, role str
 	return err
 }
 
-func (s *Storage) DeleteMembers(ctx context.Context, chatID string, userID ...string) error {
+func (s *Storage) DeleteMembers(ctx context.Context, chatID string, userID ...string) (int, error) {
 
 	eq := sq.Eq{
 		"chat_id": chatID,
@@ -171,15 +179,24 @@ func (s *Storage) DeleteMembers(ctx context.Context, chatID string, userID ...st
 		eq["user_id"] = userID
 	}
 
-	_, err := psql.Delete("member").
+	res, err := psql.Delete("member").
 		Where(eq).RunWith(s.conn).ExecContext(ctx)
 
-	return err
+	var deleted int
+	if res != nil {
+		n, err := res.RowsAffected()
+		if err != nil {
+			return 0, errors.Wrap(err, "get number of deleted items")
+		}
+		deleted = int(n)
+	}
+
+	return deleted, err
 }
 
-func (s *Storage) GetRole(ctx context.Context, chatID, userID string) (string, error) {
+func (s *Storage) GetRole(ctx context.Context, chatID, userID string) (entities.Role, error) {
 
-	var role string
+	var role entities.Role
 
 	err := psql.Select("role").
 		From("member").
@@ -194,6 +211,9 @@ func (s *Storage) GetRole(ctx context.Context, chatID, userID string) (string, e
 		Scan(&role)
 
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", chats.ErrNotFound
+		}
 		return "", err
 	}
 
@@ -209,7 +229,7 @@ func (s *Storage) FindChatMembers(ctx context.Context, chatID string, options *u
 		).
 		OrderBy("role", "user_id")
 
-	//Join("user on member.user_id=user.id"). // todo по готовности users
+	//Join("user on member.user_id=user.id"). // todo по готовности users ?
 	//OrderBy("role", "user.name")
 
 	if options != nil && options.Limit != 0 {

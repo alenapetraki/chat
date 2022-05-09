@@ -2,19 +2,25 @@ package entities
 
 type Chat struct {
 	ID          string
-	Type        string
+	Type        ChatType
 	Name        string
 	Description string
 	AvatarURL   string
 }
 
-const (
-	DialogType  = "dialog"
-	GroupType   = "group"
-	ChannelType = "channel"
+type ChatType string
 
-	RoleMember = "member"
-	RoleOwner  = "owner"
+const (
+	DialogType  ChatType = "dialog"
+	GroupType   ChatType = "group"
+	ChannelType ChatType = "channel"
+)
+
+type Role string
+
+const (
+	RoleMember Role = "member"
+	RoleOwner  Role = "owner"
 )
 
 type ChatMember struct {

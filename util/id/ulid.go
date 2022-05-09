@@ -2,17 +2,14 @@ package id
 
 import (
 	"math/rand"
-	"sync"
 	"time"
 
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 )
 
-var mu sync.Mutex
-var entropy = ulid.Monotonic(rand.New(rand.NewSource(time.Now().UnixNano())), 0)
-
-// есть ли разница, работать с ULID или строкой?
+//var mu sync.Mutex
+//var entropy = ulid.Monotonic(rand.New(rand.NewSource(time.Now().UnixNano())), 0)
 
 func MustNewULID() string {
 	result, err := NewULID()
@@ -23,9 +20,9 @@ func MustNewULID() string {
 }
 
 func NewULID() (string, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	result, err := ulid.New(ulid.Timestamp(time.Now()), entropy)
+	//mu.Lock()
+	//defer mu.Unlock()
+	result, err := ulid.New(ulid.Now(), ulid.Monotonic(rand.New(rand.NewSource(time.Now().UnixNano())), 0))
 	if err != nil {
 		return "", errors.Wrap(err, "could not generate a new ULID")
 	}
