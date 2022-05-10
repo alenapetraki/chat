@@ -30,33 +30,34 @@ type transactioner struct {
 }
 
 func (t *transactioner) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
-	return nil, nil
+	panic("must not be called")
 }
 
-func (s *Storage) BeginTx(ctx context.Context) (chats.Storage, error) {
+func (s *Storage) RunTx(ctx context.Context, f func(st chats.Storage) error) error {
+
+	var err error
+
 	tx, err := s.conn.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "get tx")
-	}
-	return New(&transactioner{tx}), nil
-}
-
-func (s *Storage) EndTx(f func() error) error {
-	tx := s.conn.(*transactioner)
-
-	err := f()
-	if err != nil {
-		rErr := tx.Rollback()
-		_ = rErr // тоже вернуть
 		return err
 	}
 
-	return errors.Wrap(tx.Commit(), "commit tx")
-}
+	defer func() {
+		p := recover()
+		switch {
+		case p != nil:
+			_ = tx.Rollback()
+			panic(p)
+		case err != nil:
+			_ = tx.Rollback()
+		default:
+			err = tx.Commit()
+		}
+	}()
 
-//func (s *Storage) RunTx(ctx context.Context, f func(tx *sqlx.Tx)) error {
-//	return nil
-//}
+	err = f(New(&transactioner{Tx: tx}))
+	return nil
+}
 
 func (s *Storage) CreateChat(ctx context.Context, chat *entities.Chat) error {
 

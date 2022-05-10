@@ -41,16 +41,11 @@ func (s *service) CreateChat(ctx context.Context, chat *entities.Chat) (*entitie
 		return nil, err
 	}
 
-	stTx, err := s.storage.BeginTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := stTx.EndTx(func() error {
-		if err := stTx.CreateChat(ctx, chat); err != nil {
+	if err := s.storage.RunTx(ctx, func(st chats.Storage) error {
+		if err := st.CreateChat(ctx, chat); err != nil {
 			return errors.Wrap(err, "failed to create chat")
 		}
-		if err := stTx.SetMember(ctx, chat.ID, auth.GetUserID(ctx), entities.RoleOwner); err != nil {
+		if err := st.SetMember(ctx, chat.ID, auth.GetUserID(ctx), entities.RoleOwner); err != nil {
 			return errors.Wrap(err, "failed to set membership")
 		}
 		return nil

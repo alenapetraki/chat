@@ -204,20 +204,17 @@ func (t *testSuite) TestTX() {
 
 	ctx := context.Background()
 
-	tx, err := t.st.BeginTx(ctx)
-	t.Require().NoError(err)
-
-	err = tx.EndTx(func() error {
+	err := t.st.RunTx(ctx, func(st chats.Storage) error {
 		chat := &entities.Chat{
 			ID:   id.MustNewULID(),
 			Type: entities.DialogType,
 			Name: "chat foo",
 		}
-		err := tx.CreateChat(ctx, chat)
+		err := st.CreateChat(ctx, chat)
 		if err != nil {
 			return err
 		}
-		err = tx.SetMember(ctx, chat.ID, "user42", entities.RoleOwner)
+		err = st.SetMember(ctx, chat.ID, "user42", entities.RoleOwner)
 		if err != nil {
 			return err
 		}

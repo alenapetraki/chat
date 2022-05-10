@@ -35,6 +35,5 @@ type Storage interface {
 }
 
 type Tx interface {
-	BeginTx(ctx context.Context) (Storage, error)
-	EndTx(func() error) error
+	RunTx(ctx context.Context, f func(st Storage) error) error
 }
