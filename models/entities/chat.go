@@ -4,6 +4,7 @@ type Chat struct {
 	ID          string
 	Type        ChatType
 	Name        string
+	NumMembers  int
 	Description string
 	AvatarURL   string
 }

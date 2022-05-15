@@ -90,36 +90,36 @@ func (s *service) SetMember(ctx context.Context, chatID, userID string, role ent
 	}
 
 	if chat.Type == entities.DialogType {
-		members, err := s.storage.FindChatMembers(ctx, chatID, nil)
-		if err != nil {
-			return errors.Wrap(err, "check members")
+
+		role, err = s.storage.GetRole(ctx, chatID, userID)
+		if err != nil && !errors.Is(err, chats.ErrNotFound) {
+			return err
 		}
 
-		isMember := false
-		for _, m := range members {
-			if m.UserID == userID {
-				isMember = true
-				break
-			}
+		if chat.NumMembers == 2 && role == "" {
+			return chats.ErrMaxMembersNumExceeded
 		}
 
-		if len(members) == 2 && !isMember {
-			return errors.New("max two members for dialog are allowed")
-		}
 		role = entities.RoleOwner
 	}
 
-	// todo: ограничения по вместимости чата - запрос на Count к БД?
+	// непревышение количества участников нужно контролировать в транзакции, причем с уровнями изоляции разбираться?
+	// предлагаю оставить такое решение - да, могут возникнуть ситуации, когда 1002 участника. Да и ок, нет?
+	if chat.Type == entities.GroupType && chat.NumMembers >= chats.MaxGroupMembersAllowed-1 {
+		return chats.ErrMaxMembersNumExceeded
+	}
 
 	return s.storage.SetMember(ctx, chatID, userID, role)
 }
 
 func (s *service) DeleteMember(ctx context.Context, chatID, userID string) error {
+
 	role, err := s.storage.GetRole(ctx, chatID, userID)
 	if err != nil {
 		return err
 	}
 	if role == entities.RoleOwner {
+		// найти других владельцев, нельзя удалить только если владелец один
 		return errors.New("cannot delete owner")
 	}
 
@@ -131,7 +131,6 @@ func (s *service) GetRole(ctx context.Context, chatID, userID string) (entities.
 	return s.storage.GetRole(ctx, chatID, userID)
 }
 
-// todo: default sort
 //func (s *service) FindChatMembers(ctx context.Context, chatID string, options *commons.PaginationOptions) ([]*ChatMember, error) {
 //	return s.storage.FindChatMembers(ctx, chatID, options)
 //}

@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS chat (
     id text PRIMARY KEY,
     type text NOT NULL,
     name varchar(100),
+    num_members int default 0,
     description text,
     avatar_url text,
     deleted_at timestamp

@@ -113,6 +113,34 @@ func (t *testSuite) TestGetChat() {
 	}
 }
 
+func (t *testSuite) TestIncrementNumMembers() {
+
+	ctx := context.Background()
+
+	chat := &entities.Chat{
+		ID:          id.MustNewULID(),
+		Type:        entities.GroupType,
+		Name:        "chat_1",
+		Description: "just a chat",
+	}
+	t.Require().NoError(t.st.CreateChat(ctx, chat))
+
+	num, err := t.st.incrementChatMembersNum(ctx, chat.ID, 3)
+	t.Require().NoError(err)
+	t.Assert().Equal(3, num)
+
+	num, err = t.st.incrementChatMembersNum(ctx, chat.ID, -2)
+	t.Require().NoError(err)
+	t.Assert().Equal(1, num)
+
+	chat, err = t.st.GetChat(ctx, chat.ID)
+	t.Require().NoError(err)
+	t.Assert().Equal(entities.GroupType, chat.Type)
+	t.Assert().Equal(1, chat.NumMembers)
+	t.Assert().Equal("chat_1", chat.Name)
+	t.Assert().Equal("just a chat", chat.Description)
+}
+
 func (t *testSuite) TestGetChat_NotFound() {
 
 	ctx := context.Background()

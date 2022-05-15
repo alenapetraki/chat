@@ -7,6 +7,10 @@ import (
 	"github.com/alenapetraki/chat/util"
 )
 
+const (
+	MaxGroupMembersAllowed = 1000
+)
+
 type Chats interface {
 	CreateChat(ctx context.Context, chat *entities.Chat) (*entities.Chat, error)
 	UpdateChat(ctx context.Context, chat *entities.Chat) error

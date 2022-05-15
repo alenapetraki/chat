@@ -30,6 +30,44 @@ type Tx interface {
 	Rollback() error
 }
 
+// tx - адаптер для использования как Conn
+type transactioner struct {
+	Tx
+}
+
+func (t *transactioner) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	panic("must not be called")
+}
+
+func NewTransactioner(tx Tx) Conn {
+	return &transactioner{Tx: tx}
+}
+
+func RunTx(ctx context.Context, db *sql.DB, f func(tx *sql.Tx) error) error {
+
+	var err error
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		p := recover()
+		switch {
+		case p != nil:
+			_ = tx.Rollback()
+			panic(p)
+		case err != nil:
+			_ = tx.Rollback()
+		default:
+			err = tx.Commit()
+		}
+	}()
+
+	return f(tx)
+}
+
 type Config struct {
 	Host     string
 	Port     string

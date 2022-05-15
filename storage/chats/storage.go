@@ -16,6 +16,7 @@ import (
 
 type Storage struct {
 	conn storage.Conn
+	//db   *sql.DB
 }
 
 func New(db storage.Conn) *Storage {
@@ -23,15 +24,6 @@ func New(db storage.Conn) *Storage {
 }
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-
-// tx - адаптер для использования как Conn
-type transactioner struct {
-	storage.Tx
-}
-
-func (t *transactioner) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
-	panic("must not be called")
-}
 
 func (s *Storage) RunTx(ctx context.Context, f func(st chats.Storage) error) error {
 
@@ -55,8 +47,7 @@ func (s *Storage) RunTx(ctx context.Context, f func(st chats.Storage) error) err
 		}
 	}()
 
-	err = f(New(&transactioner{Tx: tx}))
-	return nil
+	return f(New(storage.NewTransactioner(tx)))
 }
 
 func (s *Storage) CreateChat(ctx context.Context, chat *entities.Chat) error {
@@ -97,9 +88,34 @@ func (s *Storage) UpdateChat(ctx context.Context, chat *entities.Chat) error {
 	return nil
 }
 
+func incrementChatMembersNum(ctx context.Context, runner sq.BaseRunner, chatID string, delta int) (int, error) {
+
+	row := psql.Update("chat").
+		Set("num_members", sq.Expr("num_members + ?", delta)).
+		Where(
+			sq.Eq{
+				"id":         chatID,
+				"deleted_at": nil,
+			},
+		).
+		Suffix("RETURNING num_members").
+		RunWith(runner).
+		QueryRowContext(ctx)
+
+	var num int
+	if err := row.Scan(&num); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, chats.ErrNotFound
+		}
+		return 0, err
+	}
+
+	return num, nil
+}
+
 func (s *Storage) GetChat(ctx context.Context, chatID string) (*entities.Chat, error) {
 
-	row := psql.Select("type", "name", "description", "avatar_url").
+	row := psql.Select("type", "name", "num_members", "description", "avatar_url").
 		From("chat").
 		Where(
 			sq.Eq{
@@ -115,6 +131,7 @@ func (s *Storage) GetChat(ctx context.Context, chatID string) (*entities.Chat, e
 	err := row.Scan(
 		&chat.Type,
 		&chat.Name,
+		&chat.NumMembers,
 		&chat.Description,
 		&chat.AvatarURL,
 	)
@@ -161,14 +178,23 @@ func (s *Storage) DeleteChat(ctx context.Context, chatID string, force ...bool) 
 
 func (s *Storage) SetMember(ctx context.Context, chatID, userID string, role entities.Role) error {
 
+	//return storage.RunTx(ctx, s.db,  func(tx *sql.Tx) error {
 	_, err := psql.Insert("member").
 		Columns("chat_id", "user_id", "role").
 		Values(chatID, userID, role).
 		Suffix("ON CONFLICT (user_id, chat_id) DO UPDATE SET user_id = ?", role).
 		RunWith(s.conn).
 		ExecContext(ctx)
+	if err != nil {
+		return err
+	}
 
-	return err
+	_, err = incrementChatMembersNum(ctx, s.conn, chatID, 1)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Storage) DeleteMembers(ctx context.Context, chatID string, userID ...string) (int, error) {
@@ -192,6 +218,7 @@ func (s *Storage) DeleteMembers(ctx context.Context, chatID string, userID ...st
 		deleted = int(n)
 	}
 
+	_, err = incrementChatMembersNum(ctx, s.conn, chatID, -deleted)
 	return deleted, err
 }
 
@@ -229,9 +256,6 @@ func (s *Storage) FindChatMembers(ctx context.Context, chatID string, options *u
 			sq.Eq{"chat_id": chatID},
 		).
 		OrderBy("role", "user_id")
-
-	//Join("user on member.user_id=user.id"). // todo по готовности users ?
-	//OrderBy("role", "user.name")
 
 	if options != nil && options.Limit != 0 {
 		query = query.Limit(uint64(options.Limit)).Offset(uint64(options.Offset))
