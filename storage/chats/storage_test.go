@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/alenapetraki/chat/models/entities"
+	"github.com/alenapetraki/chat/entities/entities"
 	"github.com/alenapetraki/chat/services/chats"
 	"github.com/alenapetraki/chat/storage"
 	"github.com/alenapetraki/chat/util/id"

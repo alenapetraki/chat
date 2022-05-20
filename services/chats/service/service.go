@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/alenapetraki/chat/auth"
-	"github.com/alenapetraki/chat/models/entities"
+	"github.com/alenapetraki/chat/entities/entities"
 	"github.com/alenapetraki/chat/services/chats"
 	"github.com/alenapetraki/chat/util/id"
 	"github.com/pkg/errors" //todo: deprecated. choose another package

@@ -3,7 +3,7 @@ package chats
 import (
 	"context"
 
-	"github.com/alenapetraki/chat/models/entities"
+	"github.com/alenapetraki/chat/entities/entities"
 	"github.com/alenapetraki/chat/util"
 )
 
