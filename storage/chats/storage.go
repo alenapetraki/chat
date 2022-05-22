@@ -5,7 +5,7 @@ import (
 	"database/sql"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/alenapetraki/chat/entities/entities"
+	"github.com/alenapetraki/chat/entities"
 	"github.com/alenapetraki/chat/services/chats"
 	"github.com/alenapetraki/chat/storage"
 	"github.com/alenapetraki/chat/util"
@@ -15,47 +15,21 @@ import (
 )
 
 type Storage struct {
-	conn storage.Conn
-	//db   *sql.DB
+	storage.DB
 }
 
-func New(db storage.Conn) *Storage {
-	return &Storage{conn: db}
+func New(db storage.DB) *Storage {
+	return &Storage{DB: db}
 }
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-
-func (s *Storage) RunTx(ctx context.Context, f func(st chats.Storage) error) error {
-
-	var err error
-
-	tx, err := s.conn.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		p := recover()
-		switch {
-		case p != nil:
-			_ = tx.Rollback()
-			panic(p)
-		case err != nil:
-			_ = tx.Rollback()
-		default:
-			err = tx.Commit()
-		}
-	}()
-
-	return f(New(storage.NewTransactioner(tx)))
-}
 
 func (s *Storage) CreateChat(ctx context.Context, chat *entities.Chat) error {
 
 	_, err := psql.Insert("chat").
 		Columns("id", "type", "name", "description", "avatar_url").
 		Values(chat.ID, chat.Type, chat.Name, chat.Description, chat.AvatarURL).
-		RunWith(s.conn).ExecContext(ctx)
+		RunWith(s.DB).ExecContext(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to insert 'chat' entity")
 	}
@@ -75,7 +49,7 @@ func (s *Storage) UpdateChat(ctx context.Context, chat *entities.Chat) error {
 				"deleted_at": nil,
 			},
 		).
-		RunWith(s.conn).
+		RunWith(s.DB).
 		ExecContext(ctx)
 	if err != nil {
 		return err
@@ -88,7 +62,7 @@ func (s *Storage) UpdateChat(ctx context.Context, chat *entities.Chat) error {
 	return nil
 }
 
-func incrementChatMembersNum(ctx context.Context, runner sq.BaseRunner, chatID string, delta int) (int, error) {
+func (s *Storage) incrementChatMembersCount(ctx context.Context, chatID string, delta int) (int, error) {
 
 	row := psql.Update("chat").
 		Set("num_members", sq.Expr("num_members + ?", delta)).
@@ -99,7 +73,7 @@ func incrementChatMembersNum(ctx context.Context, runner sq.BaseRunner, chatID s
 			},
 		).
 		Suffix("RETURNING num_members").
-		RunWith(runner).
+		RunWith(s.DB).
 		QueryRowContext(ctx)
 
 	var num int
@@ -123,7 +97,7 @@ func (s *Storage) GetChat(ctx context.Context, chatID string) (*entities.Chat, e
 				"deleted_at": nil,
 			},
 		).
-		RunWith(s.conn).
+		RunWith(s.DB).
 		QueryRowContext(ctx)
 
 	chat := entities.Chat{ID: chatID}
@@ -164,7 +138,7 @@ func (s *Storage) DeleteChat(ctx context.Context, chatID string, force ...bool) 
 			MustSql()
 	}
 
-	res, err := s.conn.ExecContext(ctx, query, args...)
+	res, err := s.DB.ExecContext(ctx, query, args...)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete 'chat'")
 	}
@@ -183,13 +157,13 @@ func (s *Storage) SetMember(ctx context.Context, chatID, userID string, role ent
 		Columns("chat_id", "user_id", "role").
 		Values(chatID, userID, role).
 		Suffix("ON CONFLICT (user_id, chat_id) DO UPDATE SET user_id = ?", role).
-		RunWith(s.conn).
+		RunWith(s.DB).
 		ExecContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	_, err = incrementChatMembersNum(ctx, s.conn, chatID, 1)
+	_, err = s.incrementChatMembersCount(ctx, chatID, 1)
 	if err != nil {
 		return err
 	}
@@ -207,7 +181,7 @@ func (s *Storage) DeleteMembers(ctx context.Context, chatID string, userID ...st
 	}
 
 	res, err := psql.Delete("member").
-		Where(eq).RunWith(s.conn).ExecContext(ctx)
+		Where(eq).RunWith(s.DB).ExecContext(ctx)
 
 	var deleted int
 	if res != nil {
@@ -218,7 +192,7 @@ func (s *Storage) DeleteMembers(ctx context.Context, chatID string, userID ...st
 		deleted = int(n)
 	}
 
-	_, err = incrementChatMembersNum(ctx, s.conn, chatID, -deleted)
+	_, err = s.incrementChatMembersCount(ctx, chatID, -deleted)
 	return deleted, err
 }
 
@@ -234,7 +208,7 @@ func (s *Storage) GetRole(ctx context.Context, chatID, userID string) (entities.
 				"user_id": userID,
 			},
 		).
-		RunWith(s.conn).
+		RunWith(s.DB).
 		QueryRowContext(ctx).
 		Scan(&role)
 
@@ -261,7 +235,7 @@ func (s *Storage) FindChatMembers(ctx context.Context, chatID string, options *u
 		query = query.Limit(uint64(options.Limit)).Offset(uint64(options.Offset))
 	}
 
-	rows, err := query.RunWith(s.conn).QueryContext(ctx)
+	rows, err := query.RunWith(s.DB).QueryContext(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/alenapetraki/chat/auth"
-	"github.com/alenapetraki/chat/entities/entities"
+	"github.com/alenapetraki/chat/entities"
 	"github.com/alenapetraki/chat/services/chats"
+	"github.com/alenapetraki/chat/storage"
+	chatsstorage "github.com/alenapetraki/chat/storage/chats"
 	"github.com/alenapetraki/chat/util/id"
 	"github.com/pkg/errors" //todo: deprecated. choose another package
 )
@@ -41,7 +43,10 @@ func (s *service) CreateChat(ctx context.Context, chat *entities.Chat) (*entitie
 		return nil, err
 	}
 
-	if err := s.storage.RunTx(ctx, func(st chats.Storage) error {
+	if err := s.storage.RunTx(func(tx *storage.Transaction) error {
+
+		st := chatsstorage.New(tx)
+
 		if err := st.CreateChat(ctx, chat); err != nil {
 			return errors.Wrap(err, "failed to create chat")
 		}

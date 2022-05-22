@@ -3,7 +3,8 @@ package chats
 import (
 	"context"
 
-	"github.com/alenapetraki/chat/entities/entities"
+	"github.com/alenapetraki/chat/entities"
+	"github.com/alenapetraki/chat/storage"
 	"github.com/alenapetraki/chat/util"
 )
 
@@ -39,5 +40,5 @@ type Storage interface {
 }
 
 type Tx interface {
-	RunTx(ctx context.Context, f func(st Storage) error) error
+	RunTx(f func(tx *storage.Transaction) error) error
 }

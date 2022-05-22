@@ -2,11 +2,10 @@ package chats
 
 import (
 	"context"
-	"database/sql"
 	"strconv"
 	"testing"
 
-	"github.com/alenapetraki/chat/entities/entities"
+	"github.com/alenapetraki/chat/entities"
 	"github.com/alenapetraki/chat/services/chats"
 	"github.com/alenapetraki/chat/storage"
 	"github.com/alenapetraki/chat/util/id"
@@ -15,7 +14,7 @@ import (
 
 type testSuite struct {
 	suite.Suite
-	db *sql.DB
+	db storage.DB
 	st *Storage
 }
 
@@ -30,7 +29,7 @@ func TestStorage(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	suite.Run(t, &testSuite{db: db})
+	suite.Run(t, &testSuite{db: storage.NewDB(db)})
 	db.Close()
 }
 
@@ -125,11 +124,11 @@ func (t *testSuite) TestIncrementNumMembers() {
 	}
 	t.Require().NoError(t.st.CreateChat(ctx, chat))
 
-	num, err := t.st.incrementChatMembersNum(ctx, chat.ID, 3)
+	num, err := t.st.incrementChatMembersCount(ctx, chat.ID, 3)
 	t.Require().NoError(err)
 	t.Assert().Equal(3, num)
 
-	num, err = t.st.incrementChatMembersNum(ctx, chat.ID, -2)
+	num, err = t.st.incrementChatMembersCount(ctx, chat.ID, -2)
 	t.Require().NoError(err)
 	t.Assert().Equal(1, num)
 
@@ -232,7 +231,10 @@ func (t *testSuite) TestTX() {
 
 	ctx := context.Background()
 
-	err := t.st.RunTx(ctx, func(st chats.Storage) error {
+	err := t.st.RunTx(func(tx *storage.Transaction) error {
+
+		st := New(tx)
+
 		chat := &entities.Chat{
 			ID:   id.MustNewULID(),
 			Type: entities.DialogType,
