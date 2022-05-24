@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/Masterminds/squirrel v1.5.2
+	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible
 	github.com/lib/pq v1.10.5
 	github.com/oklog/ulid v1.3.1
 	github.com/pkg/errors v0.9.1
@@ -12,6 +13,7 @@ require (
 )
 
 require (
+	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect

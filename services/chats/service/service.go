@@ -70,11 +70,13 @@ func (s *service) GetChat(ctx context.Context, chatID string) (*entities.Chat, e
 }
 
 func (s *service) DeleteChat(ctx context.Context, chatID string) error {
+	if _, err := s.storage.DeleteMembers(ctx, chatID); err != nil {
+		return err
+	}
 	if err := s.storage.DeleteChat(ctx, chatID); err != nil {
 		return err
 	}
-	_, err := s.storage.DeleteMembers(ctx, chatID)
-	return err
+	return nil
 }
 
 func (s *service) UpdateChat(ctx context.Context, chat *entities.Chat) error {

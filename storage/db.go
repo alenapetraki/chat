@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/alenapetraki/chat/storage/migrations"
+	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/pkg/errors"
 )
 
@@ -141,9 +142,15 @@ type Config struct {
 
 func Connect(driver string, config *Config) (*sql.DB, error) {
 
-	if config.Host == "" || config.Port == "" || config.User == "" ||
-		config.Password == "" || config.Database == "" {
-		return nil, errors.New("host:port, user:password and database parameters required")
+	if err := validation.ValidateStruct(
+		config,
+		validation.Field(&config.Host, validation.Required),
+		validation.Field(&config.Port, validation.Required),
+		validation.Field(&config.User, validation.Required),
+		validation.Field(&config.Password, validation.Required),
+		validation.Field(&config.Database, validation.Required),
+	); err != nil {
+		return nil, err
 	}
 
 	db, err := sql.Open(driver, fmt.Sprintf(
