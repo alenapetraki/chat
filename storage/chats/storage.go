@@ -25,19 +25,22 @@ func New(db storage.DB) *Storage {
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 func (s *Storage) CreateChat(ctx context.Context, chat *entities.Chat) error {
+	const op = "Storage.CreateChat"
 
 	_, err := psql.Insert("chat").
 		Columns("id", "type", "name", "description", "avatar_url").
 		Values(chat.ID, chat.Type, chat.Name, chat.Description, chat.AvatarURL).
 		RunWith(s.DB).ExecContext(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to insert 'chat' entity")
+		return errors.Wrap(err, op)
 	}
 
 	return nil
 }
 
 func (s *Storage) UpdateChat(ctx context.Context, chat *entities.Chat) error {
+
+	const op = "Storage.UpdateChat"
 
 	res, err := psql.Update("chat").
 		Set("name", chat.Name).
@@ -52,11 +55,11 @@ func (s *Storage) UpdateChat(ctx context.Context, chat *entities.Chat) error {
 		RunWith(s.DB).
 		ExecContext(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, op)
 	}
 
 	if num, _ := res.RowsAffected(); num == 0 {
-		return chats.ErrNotFound
+		return errors.Wrap(chats.ErrNotFound, op)
 	}
 
 	return nil
@@ -89,6 +92,8 @@ func (s *Storage) incrementChatMembersCount(ctx context.Context, chatID string, 
 
 func (s *Storage) GetChat(ctx context.Context, chatID string) (*entities.Chat, error) {
 
+	const op = "Storage.GetChat"
+
 	row := psql.Select("type", "name", "num_members", "description", "avatar_url").
 		From("chat").
 		Where(
@@ -111,15 +116,16 @@ func (s *Storage) GetChat(ctx context.Context, chatID string) (*entities.Chat, e
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, chats.ErrNotFound
+			err = chats.ErrNotFound
 		}
-		return nil, err
+		return nil, errors.Wrap(err, op)
 	}
 
 	return &chat, nil
 }
 
 func (s *Storage) DeleteChat(ctx context.Context, chatID string, force ...bool) error {
+	const op = "Storage.DeleteChat"
 
 	var (
 		query string
@@ -140,17 +146,18 @@ func (s *Storage) DeleteChat(ctx context.Context, chatID string, force ...bool) 
 
 	res, err := s.DB.ExecContext(ctx, query, args...)
 	if err != nil {
-		return errors.Wrap(err, "failed to delete 'chat'")
+		return errors.Wrap(err, op)
 	}
 
 	if num, _ := res.RowsAffected(); num == 0 {
-		return chats.ErrNotFound
+		return errors.Wrap(chats.ErrNotFound, op)
 	}
 
 	return nil
 }
 
 func (s *Storage) SetMember(ctx context.Context, chatID, userID string, role entities.Role) error {
+	const op = "Storage.SetMember"
 
 	//return storage.RunTx(ctx, s.db,  func(tx *sql.Tx) error {
 	_, err := psql.Insert("member").
@@ -160,18 +167,20 @@ func (s *Storage) SetMember(ctx context.Context, chatID, userID string, role ent
 		RunWith(s.DB).
 		ExecContext(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, op)
 	}
 
 	_, err = s.incrementChatMembersCount(ctx, chatID, 1)
 	if err != nil {
-		return err
+		return errors.Wrap(err, op)
 	}
 
 	return nil
 }
 
 func (s *Storage) DeleteMembers(ctx context.Context, chatID string, userID ...string) (int, error) {
+
+	const op = "Storage.DeleteMembers"
 
 	eq := sq.Eq{
 		"chat_id": chatID,
@@ -182,21 +191,28 @@ func (s *Storage) DeleteMembers(ctx context.Context, chatID string, userID ...st
 
 	res, err := psql.Delete("member").
 		Where(eq).RunWith(s.DB).ExecContext(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, op)
+	}
 
 	var deleted int
 	if res != nil {
 		n, err := res.RowsAffected()
 		if err != nil {
-			return 0, errors.Wrap(err, "get number of deleted items")
+			return 0, errors.Wrap(err, op)
 		}
 		deleted = int(n)
 	}
 
-	_, err = s.incrementChatMembersCount(ctx, chatID, -deleted)
-	return deleted, err
+	if _, err = s.incrementChatMembersCount(ctx, chatID, -deleted); err != nil {
+		return 0, errors.Wrap(err, op)
+	}
+	return deleted, nil
 }
 
 func (s *Storage) GetRole(ctx context.Context, chatID, userID string) (entities.Role, error) {
+
+	const op = "Storage.GetRole"
 
 	var role entities.Role
 
@@ -214,15 +230,17 @@ func (s *Storage) GetRole(ctx context.Context, chatID, userID string) (entities.
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", chats.ErrNotFound
+			err = chats.ErrNotFound
 		}
-		return "", err
+		return "", errors.Wrap(err, op)
 	}
 
 	return role, nil
 }
 
 func (s *Storage) FindChatMembers(ctx context.Context, chatID string, options *util.PaginationOptions) ([]*entities.ChatMember, error) {
+
+	const op = "Storage.FindChatMembers"
 
 	query := psql.Select("user_id", "role").
 		From("member").
@@ -252,7 +270,7 @@ func (s *Storage) FindChatMembers(ctx context.Context, chatID string, options *u
 			&m.Role,
 		)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, op)
 		}
 
 		res = append(res, m)
