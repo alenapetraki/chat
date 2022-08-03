@@ -1,0 +1,46 @@
+title Authentication flow
+
+actor Client
+
+participantgroup #C4DFD1 Account 
+participant Account service
+database DB
+end 
+
+participantgroup #F9D2FF Chat Management
+control Auth Interceptor
+participant Chat service
+end 
+
+
+# todo: посмотреть обозначения 'relations' (типа линий)
+
+# Client->Account:CreateUser(username, password)
+# Client<-Account:OK
+
+Client->Account service: Authenticate (username, password)
+
+Account service->DB: Generate and store Refresh Token
+
+Client<-Account service: Access Token, Refresh Token (AT, RT)
+
+
+Client->Auth Interceptor: ProcessRequest (Access Token)
+
+note over Auth Interceptor: Validate AT with (super)secret key
+Auth Interceptor->Auth Interceptor: Validate AT
+
+alt #FFEFD2 validation succeeded
+note over Auth Interceptor: Retrieve userID
+Auth Interceptor->Chat service: ProcessRequest (userID)
+
+else token expired
+Auth Interceptor->Client: Token expired
+Client->Account service: Refresh(RT)
+Account service<->DB: Get token from DB
+Account service->Account service: Compare tokens
+Account service->Client: New pair Access Token, Refresh Token
+
+else invalid token
+Auth Interceptor->Client: Unauthorized
+end 
